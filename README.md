@@ -1,1 +1,1 @@
-# zproducts-api
+# ZProducts-API
