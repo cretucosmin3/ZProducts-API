@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -7,12 +6,14 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 
 using ProductAPI.Types;
-using ProductAPI.Services.UserService;
+using ProductAPI.Services;
+using ProductAPI.DbContracts;
+using MongoDB.Driver;
+using ProductAPI.Helpers.Database;
 
 namespace ProductAPI.Controllers;
 
-
-[Route("api/[controller]")]
+[Route("[controller]")]
 [ApiController]
 public class AuthController : ControllerBase
 {
@@ -20,11 +21,13 @@ public class AuthController : ControllerBase
 
     private readonly IConfiguration _configuration;
     private readonly IUserService _userService;
+    private readonly IDatabaseService dbService;
 
-    public AuthController(IConfiguration configuration, IUserService userService)
+    public AuthController(IConfiguration configuration, IUserService userService, IDatabaseService dbS)
     {
         _configuration = configuration;
         _userService = userService;
+        dbService = dbS;
     }
 
     [HttpGet("Details"), Authorize]
@@ -35,28 +38,46 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public ActionResult<User> Register(UserDto request)
+    public async Task<ActionResult<bool>> Register(RegisterUserDto request)
     {
+        Console.WriteLine("Register request received");
+
+        var tokensHelper = TokensHelper.WithService(dbService);
+        var dbToken = await tokensHelper.GetByAccessCode(request.AccessCode);
+
+        if (dbToken == null)
+            return BadRequest("Invalid access code");
+
+
+        var usersHelper = UsersHelper.WithService(dbService);
+
+        if (await usersHelper.EmailExists(request.Email))
+            return BadRequest("Email already registered");
+
         CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
 
-        user.Username = request.Username;
-        user.PasswordHash = passwordHash;
-        user.PasswordSalt = passwordSalt;
+        var userCreated = await usersHelper.CreateNew(new DbContracts.User()
+        {
+            Email = request.Email,
+            Role = dbToken.Role,
+            PasswordHash = passwordHash,
+            PasswordSalt = passwordSalt,
+        });
 
-        return Ok(user);
+        if (userCreated)
+            await tokensHelper.Delete(request.AccessCode);
+
+        Console.WriteLine($"user created {userCreated}");
+
+        return Ok(userCreated);
     }
 
     [HttpPost("login")]
-    public ActionResult<string> Login(UserDto request)
+    public ActionResult<RefreshToken> Login(UserDto request)
     {
-        if (user.Username != request.Username)
+        if (user.Email != request.Email || !VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
         {
-            return BadRequest("User not found.");
-        }
-
-        if (!VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
-        {
-            return BadRequest("Wrong password.");
+            return BadRequest("Incorrect login details.");
         }
 
         string token = CreateToken(user);
@@ -64,7 +85,7 @@ public class AuthController : ControllerBase
         var refreshToken = GenerateRefreshToken();
         SetRefreshToken(refreshToken);
 
-        return Ok(token);
+        return Ok(refreshToken);
     }
 
     [HttpPost("refresh-token")]
@@ -118,12 +139,12 @@ public class AuthController : ControllerBase
     {
         List<Claim> claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Name, user.Email),
                 new Claim(ClaimTypes.Role, "Admin")
             };
 
         var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
-            _configuration.GetSection("AppSettings:Token").Value));
+            _configuration.GetSection("Jwt:SecretKey").Value));
 
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
 

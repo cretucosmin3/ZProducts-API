@@ -1,4 +1,4 @@
-namespace ProductAPI.Types;
+namespace ProductAPI.DbContracts;
 
 [DataContract]
 public class User
@@ -8,13 +8,16 @@ public class User
     public ObjectId Id { get; set; }
 
     [DataMember]
-    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
 
     [DataMember]
-    public byte[] PasswordHash { get; set; }
+    public string Role { get; set; } = string.Empty;
 
     [DataMember]
-    public byte[] PasswordSalt { get; set; }
+    public byte[] PasswordHash { get; set; } = default!;
+
+    [DataMember]
+    public byte[] PasswordSalt { get; set; } = default!;
 
     [DataMember]
     public string RefreshToken { get; set; } = string.Empty;

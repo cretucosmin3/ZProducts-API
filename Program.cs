@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.Filters;
 using System.Text;
+using ProductAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +19,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IDatabaseService, DatabaseService>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
 
 builder.Services.AddSwaggerGen();
 builder.Services.AddSwaggerGen(options =>
@@ -34,6 +37,16 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<SecurityRequirementsOperationFilter>();
 });
 
+var Configuration = builder.Configuration;
+var SecretKey = builder.Configuration.GetSection("Jwt:SecretKey").Value;
+var Issuer = builder.Configuration.GetSection("Jwt:Issuer").Value;
+var Audience = builder.Configuration.GetSection("Jwt:Audience").Value;
+
+Console.WriteLine("::Config::");
+Console.WriteLine($"SecretKey   : {SecretKey}");
+Console.WriteLine($"Issuer      : {Issuer}");
+Console.WriteLine($"Audience    : {Audience}");
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -41,11 +54,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8
-                .GetBytes(builder.Configuration.GetSection("AppSettings:Token").Value)),
+                .GetBytes(SecretKey)),
             ValidateIssuer = false,
             ValidateAudience = false
         };
     });
+
+// builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+//     .AddJwtBearer(options =>
+//     {
+//         options.RequireHttpsMetadata = false;
+//         options.SaveToken = true;
+//         options.TokenValidationParameters = new TokenValidationParameters
+//         {
+//             ValidateIssuer = true,
+//             ValidateAudience = true,
+//             ValidateLifetime = true,
+//             ValidateIssuerSigningKey = true,
+//             ValidIssuer = Issuer,
+//             ValidAudience = Audience,
+//             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SecretKey)),
+//             ClockSkew = TimeSpan.Zero
+//         };
+//     });
 
 builder.Services.AddCors(options => options.AddPolicy(name: "NgOrigins",
     policy =>
