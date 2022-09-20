@@ -17,8 +17,6 @@ namespace ProductAPI.Controllers;
 [ApiController]
 public class AuthController : ControllerBase
 {
-    public static User user = new User();
-
     private readonly IConfiguration _configuration;
     private readonly IUserService _userService;
     private readonly IDatabaseService dbService;
@@ -40,11 +38,8 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<bool>> Register(RegisterUserDto request)
     {
-        Console.WriteLine("Register request received");
-
         var tokensHelper = TokensHelper.WithService(dbService);
         var dbToken = await tokensHelper.GetByAccessCode(request.AccessCode);
-
         if (dbToken == null)
             return BadRequest("Invalid access code");
 
@@ -64,28 +59,44 @@ public class AuthController : ControllerBase
             PasswordSalt = passwordSalt,
         });
 
+        // Delete access code from db
         if (userCreated)
             await tokensHelper.Delete(request.AccessCode);
-
-        Console.WriteLine($"user created {userCreated}");
 
         return Ok(userCreated);
     }
 
     [HttpPost("login")]
-    public ActionResult<RefreshToken> Login(UserDto request)
+    public async Task<ActionResult<string>> Login(UserDto request)
     {
-        if (user.Email != request.Email || !VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
-        {
-            return BadRequest("Incorrect login details.");
-        }
+        var usersHelper = UsersHelper.WithService(dbService);
 
-        string token = CreateToken(user);
+        var dbUser = await usersHelper.GetUserByEmail(request.Email);
+
+        if (dbUser == null)
+            return BadRequest("Incorrect login details.");
+
+        var passwordMatch = VerifyPasswordHash(request.Password, dbUser.PasswordHash, dbUser.PasswordSalt);
+
+        if (dbUser.Email != request.Email || passwordMatch == false)
+            return BadRequest("Incorrect login details.");
+
+        string token = CreateToken(dbUser);
 
         var refreshToken = GenerateRefreshToken();
+
+        dbUser.RefreshToken = refreshToken.Token;
+        dbUser.TokenCreated = refreshToken.Created;
+        dbUser.TokenExpires = refreshToken.Expires;
+
+        var updated = await usersHelper.UpdateOne(dbUser);
+
+        if (updated == false)
+            return BadRequest("Internal error");
+
         SetRefreshToken(refreshToken);
 
-        return Ok(refreshToken);
+        return Ok(token);
     }
 
     [HttpPost("refresh-token")]
@@ -93,20 +104,27 @@ public class AuthController : ControllerBase
     {
         var refreshToken = Request.Cookies["refreshToken"];
 
-        if (!user.RefreshToken.Equals(refreshToken))
-        {
-            return Unauthorized("Invalid Refresh Token.");
-        }
-        else if (user.TokenExpires < DateTime.Now)
-        {
-            return Unauthorized("Token expired.");
-        }
+        // if (!user.RefreshToken.Equals(refreshToken))
+        // {
+        //     return Unauthorized("Invalid Refresh Token.");
+        // }
+        // else if (user.TokenExpires < DateTime.Now)
+        // {
+        //     return Unauthorized("Token expired.");
+        // }
 
-        string token = CreateToken(user);
-        var newRefreshToken = GenerateRefreshToken();
-        SetRefreshToken(newRefreshToken);
+        // string token = CreateToken(user);
 
-        return Ok(token);
+        // var newRefreshToken = GenerateRefreshToken();
+        // SetRefreshToken(newRefreshToken);
+
+
+        // user.RefreshToken = newRefreshToken.Token;
+        // user.TokenCreated = newRefreshToken.Created;
+        // user.TokenExpires = newRefreshToken.Expires;
+
+        // return Ok(token);
+        return Ok("token");
     }
 
     private RefreshToken GenerateRefreshToken()
@@ -129,10 +147,6 @@ public class AuthController : ControllerBase
             Expires = newRefreshToken.Expires
         };
         Response.Cookies.Append("refreshToken", newRefreshToken.Token, cookieOptions);
-
-        user.RefreshToken = newRefreshToken.Token;
-        user.TokenCreated = newRefreshToken.Created;
-        user.TokenExpires = newRefreshToken.Expires;
     }
 
     private string CreateToken(User user)
@@ -140,7 +154,7 @@ public class AuthController : ControllerBase
         List<Claim> claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.Email),
-                new Claim(ClaimTypes.Role, "Admin")
+                new Claim(ClaimTypes.Role, user.Role)
             };
 
         var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(

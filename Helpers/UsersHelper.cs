@@ -35,4 +35,24 @@ public class UsersHelper
 
         return true;
     }
+
+    public async Task<User?> GetUserByEmail(string email)
+    {
+        var users = DbService.Database.GetCollection<User>("users");
+
+        var usersFilter = Builders<User>.Filter.Eq(x => x.Email, email);
+        var found = await users.Find(usersFilter).ToListAsync();
+
+        return found.Any() ? found.First() : null;
+    }
+
+    public async Task<bool> UpdateOne(User user)
+    {
+        var users = DbService.Database.GetCollection<User>("users");
+
+        var usersFilter = Builders<User>.Filter.Eq(x => x.Email, user.Email);
+        var result = await users.ReplaceOneAsync(usersFilter, user);
+
+        return result.ModifiedCount > 0;
+    }
 }
