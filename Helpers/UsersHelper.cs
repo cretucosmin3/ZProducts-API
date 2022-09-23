@@ -46,6 +46,16 @@ public class UsersHelper
         return found.Any() ? found.First() : null;
     }
 
+    public async Task<User?> FindUserWithToken(string token)
+    {
+        var users = DbService.Database.GetCollection<User>("users");
+
+        var usersFilter = Builders<User>.Filter.Eq(x => x.RefreshToken, token);
+        var found = await users.Find(usersFilter).ToListAsync();
+
+        return found.Any() ? found.First() : null;
+    }
+
     public async Task<bool> UpdateOne(User user)
     {
         var users = DbService.Database.GetCollection<User>("users");

@@ -1,9 +1,5 @@
-// using System.Collections.Specialized;
-using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MongoDB.Driver;
 using ProductAPI.Services;
 
 namespace ProductAPI.Controllers;
@@ -19,7 +15,7 @@ public class UserController : ControllerBase
         dbService = dbS;
     }
 
-    [HttpGet("islogged"), Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    [HttpGet("islogged"), Authorize]
     public ActionResult<bool> IsLogged()
     {
         return Ok(true);

@@ -10,6 +10,7 @@ using ProductAPI.Services;
 using ProductAPI.DbContracts;
 using MongoDB.Driver;
 using ProductAPI.Helpers.Database;
+using System.Text.Json.Serialization;
 
 namespace ProductAPI.Controllers;
 
@@ -20,6 +21,7 @@ public class AuthController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IUserService _userService;
     private readonly IDatabaseService dbService;
+    private readonly int TokenExpiration = 2;
 
     public AuthController(IConfiguration configuration, IUserService userService, IDatabaseService dbS)
     {
@@ -69,6 +71,9 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<string>> Login(UserDto request)
     {
+        HttpContext.Session.SetString("keyname", "Testing");
+
+        Console.WriteLine("-- Login");
         var usersHelper = UsersHelper.WithService(dbService);
 
         var dbUser = await usersHelper.GetUserByEmail(request.Email);
@@ -99,32 +104,49 @@ public class AuthController : ControllerBase
         return Ok(token);
     }
 
-    [HttpPost("refresh-token")]
-    public ActionResult<string> RefreshToken()
+    [HttpGet("refresh-token")]
+    public async Task<ActionResult<AuthRefresh>> RefreshToken()
     {
-        var refreshToken = Request.Cookies["refreshToken"];
+        Console.WriteLine("-- Refreshing token");
+        var refreshToken = HttpContext.Request.Cookies["refreshToken"];
 
-        // if (!user.RefreshToken.Equals(refreshToken))
-        // {
-        //     return Unauthorized("Invalid Refresh Token.");
-        // }
-        // else if (user.TokenExpires < DateTime.Now)
-        // {
-        //     return Unauthorized("Token expired.");
-        // }
+        Console.WriteLine($"Cookie exists: {refreshToken}");
 
-        // string token = CreateToken(user);
+        if (string.IsNullOrEmpty(refreshToken))
+            return BadRequest("Auth token not present");
 
-        // var newRefreshToken = GenerateRefreshToken();
-        // SetRefreshToken(newRefreshToken);
+        var usersHelper = UsersHelper.WithService(dbService);
 
+        var dbUser = await usersHelper.FindUserWithToken(refreshToken);
 
-        // user.RefreshToken = newRefreshToken.Token;
-        // user.TokenCreated = newRefreshToken.Created;
-        // user.TokenExpires = newRefreshToken.Expires;
+        if (dbUser == null)
+        {
+            Console.WriteLine($"User doesn't exist, token {refreshToken.Take(8)}...");
+            return Unauthorized("Invalid request");
+        }
+
+        string token = CreateToken(dbUser);
+
+        if (dbUser.TokenExpires < DateTime.Now)
+        {
+            var newRefreshToken = GenerateRefreshToken();
+            SetRefreshToken(newRefreshToken);
+
+            dbUser.RefreshToken = newRefreshToken.Token;
+            dbUser.TokenCreated = newRefreshToken.Created;
+            dbUser.TokenExpires = newRefreshToken.Expires;
+
+            var updated = await usersHelper.UpdateOne(dbUser);
+
+            if (updated == false)
+                return BadRequest("Internal error");
+        }
 
         // return Ok(token);
-        return Ok("token");
+        return Ok(new AuthRefresh()
+        {
+            RefreshToken = token
+        });
     }
 
     private RefreshToken GenerateRefreshToken()
@@ -132,7 +154,7 @@ public class AuthController : ControllerBase
         var refreshToken = new RefreshToken
         {
             Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-            Expires = DateTime.Now.AddDays(7),
+            Expires = DateTime.Now.AddMonths(3),
             Created = DateTime.Now
         };
 
@@ -141,11 +163,34 @@ public class AuthController : ControllerBase
 
     private void SetRefreshToken(RefreshToken newRefreshToken)
     {
-        var cookieOptions = new CookieOptions
+        // var cookieOptions = new CookieOptions
+        // {
+        //     HttpOnly = true,
+        //     Expires = newRefreshToken.Expires
+        // };
+
+        // var cookieOptions = new CookieOptions
+        // {
+        //     Path = "/",
+        //     Domain = "localhost",
+        //     Expires = DateTime.UtcNow.AddHours(6),
+        //     HttpOnly = true,
+        //     Secure = true,
+        // };
+
+        var cookieOptions = new CookieOptions()
         {
             HttpOnly = true,
-            Expires = newRefreshToken.Expires
+            IsEssential = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = "/",
+            Domain = Response.HttpContext.Request.Host.Value, //using https://localhost:44340/ here doesn't work
+            Expires = DateTimeOffset.Now.AddDays(90),
+            MaxAge = TimeSpan.FromDays(90),
         };
+
+        Console.WriteLine($"Setting refreshToken into cookie {newRefreshToken.Token}");
         Response.Cookies.Append("refreshToken", newRefreshToken.Token, cookieOptions);
     }
 
@@ -153,6 +198,8 @@ public class AuthController : ControllerBase
     {
         List<Claim> claims = new List<Claim>
             {
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString()),
                 new Claim(ClaimTypes.Name, user.Email),
                 new Claim(ClaimTypes.Role, user.Role)
             };
@@ -164,7 +211,7 @@ public class AuthController : ControllerBase
 
         var token = new JwtSecurityToken(
             claims: claims,
-            expires: DateTime.Now.AddDays(1),
+            expires: DateTime.Now.AddSeconds(20), // seconds for testing
             signingCredentials: creds);
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
@@ -189,4 +236,10 @@ public class AuthController : ControllerBase
             return computedHash.SequenceEqual(passwordHash);
         }
     }
+}
+
+public class AuthRefresh
+{
+    [JsonPropertyName("refreshToken")]
+    public string RefreshToken { get; set; } = default!;
 }
