@@ -12,6 +12,7 @@ using Swashbuckle.AspNetCore.Filters;
 using System.Text;
 using ProductAPI.Services;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
 
 internal class Program
 {
@@ -47,10 +48,10 @@ internal class Program
         var Issuer = builder.Configuration.GetSection("Jwt:Issuer").Value;
         var Audience = builder.Configuration.GetSection("Jwt:Audience").Value;
 
-        Console.WriteLine("::Config::");
-        Console.WriteLine($"SecretKey   : {SecretKey}");
-        Console.WriteLine($"Issuer      : {Issuer}");
-        Console.WriteLine($"Audience    : {Audience}");
+        // Console.WriteLine("::Config::");
+        // Console.WriteLine($"SecretKey   : {SecretKey}");
+        // Console.WriteLine($"Issuer      : {Issuer}");
+        // Console.WriteLine($"Audience    : {Audience}");
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -71,13 +72,18 @@ internal class Program
         builder.Services.AddCors(options => options.AddPolicy(name: "NgOrigins",
             policy =>
             {
-                policy.WithOrigins("http://localhost:7056").AllowAnyMethod().AllowAnyHeader();
+                // policy.WithOrigins("https://localhost:7058").AllowAnyMethod().AllowAnyHeader().AllowCredentials();
+                policy.WithOrigins("https://localhost:7058").AllowAnyMethod().AllowAnyHeader().AllowCredentials();
             }));
 
         builder.Services.ConfigureApplicationCookie(options =>
         {
             options.ExpireTimeSpan = TimeSpan.FromDays(30);
         });
+
+        builder.Services.Configure<SecurityStampValidatorOptions>(
+            o => o.ValidationInterval = TimeSpan.FromDays(365)
+        );
 
         builder.Services.AddDataProtection()
                         .PersistKeysToFileSystem(new System.IO.DirectoryInfo("cookie-storage"))
@@ -88,7 +94,7 @@ internal class Program
             options.HttpOnly = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
             options.CheckConsentNeeded = context => false;
             options.Secure = CookieSecurePolicy.Always;
-            options.MinimumSameSitePolicy = SameSiteMode.Strict;
+            options.MinimumSameSitePolicy = SameSiteMode.Lax;
         });
 
         var app = builder.Build();
@@ -96,20 +102,15 @@ internal class Program
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
-            app.UseSwagger();
-            app.UseSwaggerUI();
+            // app.UseSwagger();
+            // app.UseSwaggerUI();
 
-            app.UseDeveloperExceptionPage();
-            app.UseCors(options => options
-                // .WithOrigins("http://localhost:3000")
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials());
+            // app.UseDeveloperExceptionPage();
             // app.UseCookiePolicy();
         }
 
-        app.UseCookiePolicy();
         app.UseCors("NgOrigins");
+        app.UseCookiePolicy();
         app.UseHttpsRedirection();
         app.UseAuthentication();
         app.UseAuthorization();

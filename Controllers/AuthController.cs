@@ -71,8 +71,6 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<string>> Login(UserDto request)
     {
-        HttpContext.Session.SetString("keyname", "Testing");
-
         Console.WriteLine("-- Login");
         var usersHelper = UsersHelper.WithService(dbService);
 
@@ -107,8 +105,9 @@ public class AuthController : ControllerBase
     [HttpGet("refresh-token")]
     public async Task<ActionResult<AuthRefresh>> RefreshToken()
     {
-        Console.WriteLine("-- Refreshing token");
-        var refreshToken = HttpContext.Request.Cookies["refreshToken"];
+        var identifier = HttpContext.TraceIdentifier;
+        Console.WriteLine($"-- Refreshing token {identifier}");
+        HttpContext.Request.Cookies.TryGetValue("refresh-token", out string refreshToken);
 
         Console.WriteLine($"Cookie exists: {refreshToken}");
 
@@ -178,20 +177,23 @@ public class AuthController : ControllerBase
         //     Secure = true,
         // };
 
+        Console.WriteLine($"Setting cookie to {Response.HttpContext.Request.Host.Value}");
+        Console.WriteLine($"Value: {newRefreshToken.Token}");
+
         var cookieOptions = new CookieOptions()
         {
+            Secure = true,
             HttpOnly = true,
             IsEssential = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.Lax,
             Path = "/",
-            Domain = Response.HttpContext.Request.Host.Value, //using https://localhost:44340/ here doesn't work
+            // Domain = "localhost",
             Expires = DateTimeOffset.Now.AddDays(90),
             MaxAge = TimeSpan.FromDays(90),
         };
 
-        Console.WriteLine($"Setting refreshToken into cookie {newRefreshToken.Token}");
-        Response.Cookies.Append("refreshToken", newRefreshToken.Token, cookieOptions);
+        Response.Cookies.Append("refresh-token", newRefreshToken.Token, cookieOptions);
+        // Response.Cookies.Append("JustTesting", "Testing", cookieOptions);
     }
 
     private string CreateToken(User user)
