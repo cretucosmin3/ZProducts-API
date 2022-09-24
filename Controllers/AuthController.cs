@@ -71,7 +71,6 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<string>> Login(UserDto request)
     {
-        Console.WriteLine("-- Login");
         var usersHelper = UsersHelper.WithService(dbService);
 
         var dbUser = await usersHelper.GetUserByEmail(request.Email);
@@ -106,10 +105,7 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<AuthRefresh>> RefreshToken()
     {
         var identifier = HttpContext.TraceIdentifier;
-        Console.WriteLine($"-- Refreshing token {identifier}");
         HttpContext.Request.Cookies.TryGetValue("refresh-token", out string refreshToken);
-
-        Console.WriteLine($"Cookie exists: {refreshToken}");
 
         if (string.IsNullOrEmpty(refreshToken))
             return BadRequest("Auth token not present");
@@ -120,7 +116,6 @@ public class AuthController : ControllerBase
 
         if (dbUser == null)
         {
-            Console.WriteLine($"User doesn't exist, token {refreshToken.Take(8)}...");
             return Unauthorized("Invalid request");
         }
 
@@ -152,7 +147,7 @@ public class AuthController : ControllerBase
     {
         var refreshToken = new RefreshToken
         {
-            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             Expires = DateTime.Now.AddMonths(3),
             Created = DateTime.Now
         };
@@ -162,24 +157,6 @@ public class AuthController : ControllerBase
 
     private void SetRefreshToken(RefreshToken newRefreshToken)
     {
-        // var cookieOptions = new CookieOptions
-        // {
-        //     HttpOnly = true,
-        //     Expires = newRefreshToken.Expires
-        // };
-
-        // var cookieOptions = new CookieOptions
-        // {
-        //     Path = "/",
-        //     Domain = "localhost",
-        //     Expires = DateTime.UtcNow.AddHours(6),
-        //     HttpOnly = true,
-        //     Secure = true,
-        // };
-
-        Console.WriteLine($"Setting cookie to {Response.HttpContext.Request.Host.Value}");
-        Console.WriteLine($"Value: {newRefreshToken.Token}");
-
         var cookieOptions = new CookieOptions()
         {
             Secure = true,
@@ -193,7 +170,6 @@ public class AuthController : ControllerBase
         };
 
         Response.Cookies.Append("refresh-token", newRefreshToken.Token, cookieOptions);
-        // Response.Cookies.Append("JustTesting", "Testing", cookieOptions);
     }
 
     private string CreateToken(User user)
@@ -213,7 +189,7 @@ public class AuthController : ControllerBase
 
         var token = new JwtSecurityToken(
             claims: claims,
-            expires: DateTime.Now.AddSeconds(20), // seconds for testing
+            expires: DateTime.Now.AddDays(30), // seconds for testing
             signingCredentials: creds);
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
