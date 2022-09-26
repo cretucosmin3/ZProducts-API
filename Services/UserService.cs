@@ -11,12 +11,12 @@ public class UserService : IUserService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public string GetMyName()
+    public string GetRole()
     {
         var result = string.Empty;
         if (_httpContextAccessor.HttpContext != null)
         {
-            result = _httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.Name);
+            result = _httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.Role);
         }
         return result;
     }

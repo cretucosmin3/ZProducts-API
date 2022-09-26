@@ -16,14 +16,12 @@ public class UsersHelper
         };
     }
 
-    public async Task<bool> EmailExists(string email)
+    public bool EmailExists(string email)
     {
         var users = DbService.Database.GetCollection<User>("users");
 
         var usersFilter = Builders<User>.Filter.Eq(x => x.Email, email);
-        var found = await users.Find(usersFilter).ToListAsync();
-
-        return found.Any();
+        return users.CountDocuments(usersFilter) > 0;
     }
 
     public async Task<bool> CreateNew(User newUser)

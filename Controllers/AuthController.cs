@@ -11,6 +11,8 @@ using ProductAPI.DbContracts;
 using MongoDB.Driver;
 using ProductAPI.Helpers.Database;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.SignalR;
+using ProductAPI.SinglarRHubs;
 
 namespace ProductAPI.Controllers;
 
@@ -21,20 +23,28 @@ public class AuthController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IUserService _userService;
     private readonly IDatabaseService dbService;
+    private readonly IHubContext<ProgressHub> _progressHub;
     private readonly int TokenExpiration = 2;
 
-    public AuthController(IConfiguration configuration, IUserService userService, IDatabaseService dbS)
+    public AuthController(IConfiguration configuration, IUserService userService, IDatabaseService dbS, IHubContext<ProgressHub> questionHubContext)
     {
         _configuration = configuration;
         _userService = userService;
+        _progressHub = questionHubContext;
         dbService = dbS;
     }
 
-    [HttpGet("Details"), Authorize]
-    public ActionResult<string> GetMe()
+    [HttpGet("Details")]
+    public async Task<ActionResult<string>> GetMe()
     {
-        var userName = _userService.GetMyName();
-        return Ok(userName);
+        // var userName = _userService.GetRole();
+        await _progressHub.Clients.All.SendAsync("ReceiveMessage", "Server", new MessageData()
+        {
+            Reason = "None",
+            Message = "Hello"
+        });
+
+        return Ok("Sent");
     }
 
     [HttpPost("register")]
@@ -48,7 +58,7 @@ public class AuthController : ControllerBase
 
         var usersHelper = UsersHelper.WithService(dbService);
 
-        if (await usersHelper.EmailExists(request.Email))
+        if (usersHelper.EmailExists(request.Email))
             return BadRequest("Email already registered");
 
         CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
@@ -136,7 +146,6 @@ public class AuthController : ControllerBase
                 return BadRequest("Internal error");
         }
 
-        // return Ok(token);
         return Ok(new AuthRefresh()
         {
             RefreshToken = token
@@ -174,6 +183,8 @@ public class AuthController : ControllerBase
 
     private string CreateToken(User user)
     {
+        Console.WriteLine($"Creating Token {user.Email} : Role {user.Role}");
+
         List<Claim> claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
@@ -220,4 +231,10 @@ public class AuthRefresh
 {
     [JsonPropertyName("refreshToken")]
     public string RefreshToken { get; set; } = default!;
+}
+
+public class MessageData
+{
+    public string Reason { get; set; }
+    public string Message { get; set; }
 }

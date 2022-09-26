@@ -10,12 +10,9 @@ public class UserController : ControllerBase
 {
     private readonly IDatabaseService dbService;
 
-    public UserController(IDatabaseService dbS)
-    {
-        dbService = dbS;
-    }
+    public UserController(IDatabaseService dbS) => dbService = dbS;
 
-    [HttpGet("islogged"), Authorize]
+    [HttpGet("is-logged"), Authorize]
     public ActionResult<bool> IsLogged()
     {
         return Ok(true);

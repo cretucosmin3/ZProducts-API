@@ -7,12 +7,12 @@ global using MongoDB.Bson.Serialization.Attributes;
 // Locals
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using Swashbuckle.AspNetCore.Filters;
 using System.Text;
 using ProductAPI.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using ProductAPI.SinglarRHubs;
+using Microsoft.AspNetCore.ResponseCompression;
 
 internal class Program
 {
@@ -24,10 +24,17 @@ internal class Program
 
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<IDatabaseService, DatabaseService>();
-        builder.Services.AddHttpContextAccessor();
         builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
+        builder.Services.AddSignalR();
+
+        builder.Services.AddResponseCompression(opts =>
+        {
+            opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+                new[] { "application/octet-stream" });
+        });
 
         // builder.Services.AddSwaggerGen();
         // builder.Services.AddSwaggerGen(options =>
@@ -109,12 +116,14 @@ internal class Program
             // app.UseCookiePolicy();
         }
 
+        app.UseResponseCompression();
         app.UseCors("NgOrigins");
         app.UseCookiePolicy();
         app.UseHttpsRedirection();
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
+        app.MapHub<ProgressHub>("/progress-hub");
         app.Run();
     }
 }
