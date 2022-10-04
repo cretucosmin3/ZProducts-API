@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.SignalR;
 using MongoDB.Driver;
 using ProductAPI.DbContracts;
 using ProductAPI.Services;
+using ProductAPI.SinglarRHubs;
 
 namespace ProductAPI.Helpers.Database;
 
@@ -74,5 +76,14 @@ public class IndexHelper
         var result = searchIndexes.DeleteOne(tokensFilter);
 
         return result.DeletedCount > 0;
+    }
+
+    public SearchIndex? GetIndex(string indexText)
+    {
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+
+        var iTlower = indexText.ToLower();
+        var tokensFilter = Builders<SearchIndex>.Filter.Eq(x => x.TextToSearch, iTlower);
+        return searchIndexes.Find(tokensFilter).First() ?? null;
     }
 }

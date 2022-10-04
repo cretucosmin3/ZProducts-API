@@ -47,6 +47,12 @@ public class AuthController : ControllerBase
         return Ok("Sent");
     }
 
+    [HttpGet("is-logged"), Authorize]
+    public ActionResult<bool> IsLogged()
+    {
+        return Ok(true);
+    }
+
     [HttpPost("register")]
     public async Task<ActionResult<bool>> Register(RegisterUserDto request)
     {

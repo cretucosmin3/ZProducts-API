@@ -1,9 +1,13 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Newtonsoft.Json;
 using ProductAPI.DbContracts;
+using ProductAPI.Helpers;
 using ProductAPI.Helpers.Database;
 using ProductAPI.Services;
+using ProductAPI.SinglarRHubs;
 
 namespace ProductAPI.Controllers;
 
@@ -13,7 +17,15 @@ namespace ProductAPI.Controllers;
 public class IndexController : ControllerBase
 {
     private readonly IDatabaseService dbService;
-    public IndexController(IDatabaseService dbS) => dbService = dbS;
+    private readonly IHttpClientFactory clientFactory;
+    private readonly IHubContext<ProgressHub> progressHub;
+
+    public IndexController(IDatabaseService dbS, IHttpClientFactory cFactory, IHubContext<ProgressHub> hubContext)
+    {
+        dbService = dbS;
+        clientFactory = cFactory;
+        progressHub = hubContext;
+    }
     private int _pageRows = 15;
 
     [HttpPost("add-new")]
@@ -52,6 +64,26 @@ public class IndexController : ControllerBase
             return indexHeleper.ListIndexes(filter ?? "", _pageRows * (page - 1), _pageRows * page);
 
         return indexHeleper.AllIndexes();
+    }
+
+    [HttpGet("start-indexing")]
+    public async Task<ActionResult<int>> StartIndexing(string? indexText)
+    {
+        Console.WriteLine($"Starting indexing for {indexText}");
+        var indexHeleper = IndexHelper.WithService(dbService);
+        var searchIndex = indexHeleper.GetIndex(indexText ?? "");
+
+        var http = HttpHelper.WithFactory(clientFactory);
+
+        var result = await http.Get<List<string>>("links", 60);
+
+        if (result.Failed || result.Data == null)
+            return NoContent();
+
+        await progressHub.Clients.All.SendAsync("ProgressUpdates", $"{result.Data.Count} links found for index '{indexText}'");
+        Console.WriteLine(result.Data + " links found");
+
+        return result.Data.Count;
     }
 
     [HttpGet("pages-count")]

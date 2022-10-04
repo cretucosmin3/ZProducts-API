@@ -30,6 +30,13 @@ internal class Program
         builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
         builder.Services.AddSignalR();
 
+        builder.Services.AddHttpClient("CrawlerClient", (provider, client) =>
+        {
+            client.BaseAddress = new Uri("http://localhost:8000/");
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.DefaultRequestHeaders.Add("Accept", "text/plain");
+        });
+
         builder.Services.AddResponseCompression(opts =>
         {
             opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(

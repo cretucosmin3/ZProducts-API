@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductAPI.Services;
+using ProductAPI.Attributes;
 
 namespace ProductAPI.Controllers;
 
@@ -16,5 +17,11 @@ public class UserController : ControllerBase
     public ActionResult<bool> IsLogged()
     {
         return Ok(true);
+    }
+
+    [HttpGet("test"), ApiKey]
+    public ActionResult<string> Test()
+    {
+        return Ok("Hello there");
     }
 }
