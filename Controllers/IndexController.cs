@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -42,6 +43,7 @@ public class IndexController : ControllerBase
             TextToSearch = indexData.TextToSearch.ToLower(),
             TitleKeywords = indexData.TitleKeywords.ToLower(),
             MaxSites = indexData.MaxSites,
+            RelativePrice = indexData.RelativePrice,
             UseGoogle = indexData.UseGoogle,
             UseYahoo = indexData.UseYahoo,
             UseBing = indexData.UseBing,
@@ -66,24 +68,80 @@ public class IndexController : ControllerBase
         return indexHeleper.AllIndexes();
     }
 
-    [HttpGet("start-indexing")]
-    public async Task<ActionResult<int>> StartIndexing(string? indexText)
+    [HttpGet("force-indexing")]
+    public async Task<ActionResult<bool>> ForceIndexing(string indexText)
     {
-        Console.WriteLine($"Starting indexing for {indexText}");
+        var processHelper = ProcessHelper.WithService(dbService);
+        string processName = $"Indexing '{indexText}'";
+
+        if (processHelper.HasInProgress(processName))
+            return BadRequest("Already in progress");
+
+        var processId = processHelper.AddProcess(new Process()
+        {
+            Name = processName,
+            StartedAt = DateTime.UtcNow,
+        });
+
+        if (string.IsNullOrEmpty(processId)) return BadRequest("Process failed");
+
         var indexHeleper = IndexHelper.WithService(dbService);
-        var searchIndex = indexHeleper.GetIndex(indexText ?? "");
+        var searchIndex = indexHeleper.GetIndex(indexText);
+
+        if (searchIndex == null)
+            return BadRequest("Index doesn't exist");
 
         var http = HttpHelper.WithFactory(clientFactory);
 
-        var result = await http.Get<List<string>>("links", 60);
+        var parameters = new Dictionary<string, string?>()
+        {
+            // {"processId", processId},
+            {"processName", processName},
+            {"textToSearch", searchIndex.TextToSearch},
+            {"titleKeywords", searchIndex.TitleKeywords},
+            {"relativePrice", searchIndex.RelativePrice.ToString()}
+        };
 
-        if (result.Failed || result.Data == null)
-            return NoContent();
+        var result = await http.Get<bool>("force-index", 10, parameters);
 
-        await progressHub.Clients.All.SendAsync("ProgressUpdates", $"{result.Data.Count} links found for index '{indexText}'");
-        Console.WriteLine(result.Data + " links found");
+        if (result.Failed)
+            return BadRequest("Something went wrong internally");
 
-        return result.Data.Count;
+        return true;
+    }
+
+    [HttpGet("get-full-info")]
+    public ActionResult<IndexFullInfo> GetFullInfo(string indexText)
+    {
+        string processName = $"Indexing '{indexText}'";
+        var indexHelper = IndexHelper.WithService(dbService);
+        var siteHelper = SiteHelper.WithService(dbService);
+
+        var searchIndex = indexHelper.GetIndex(indexText);
+        var indexSites = siteHelper.FindForIndex(indexText);
+
+        if (searchIndex == null || indexSites == null)
+            return NotFound("Data not found");
+
+        return Ok(new IndexFullInfo()
+        {
+            index = searchIndex,
+            sites = indexSites
+        });
+    }
+
+    [HttpGet("has-in-progress")]
+    public ActionResult<Process?> HasInProgress(string indexText)
+    {
+        string processName = $"Indexing '{indexText}'";
+        var processHelper = ProcessHelper.WithService(dbService);
+
+        var process = processHelper.FindInProgress(processName);
+
+        if (process == null)
+            return NotFound("Process not found");
+
+        return processHelper.FindInProgress(processName);
     }
 
     [HttpGet("pages-count")]
@@ -94,10 +152,12 @@ public class IndexController : ControllerBase
     }
 
     [HttpGet("delete")]
-    public ActionResult<bool> DeleteIndex(string? indexText)
+    public ActionResult<bool> DeleteIndex(string indexText)
     {
         var indexHeleper = IndexHelper.WithService(dbService);
-        return indexHeleper.Delete(indexText);
+        var siteHelper = SiteHelper.WithService(dbService);
+
+        return indexHeleper.Delete(indexText) && siteHelper.DeleteIndexSites(indexText);
     }
 }
 
@@ -105,6 +165,9 @@ public class AddIndexForm
 {
     [JsonPropertyName("productText")]
     public string TextToSearch { get; set; } = String.Empty;
+
+    [JsonPropertyName("relativePrice")]
+    public double RelativePrice { get; set; }
 
     [JsonPropertyName("maxSites")]
     public double MaxSites { get; set; }
@@ -123,4 +186,19 @@ public class AddIndexForm
 
     [JsonPropertyName("useBing")]
     public bool UseBing { get; set; } = true;
+}
+
+public class ProcessUpdate
+{
+    public bool Finished { get; set; } = false;
+    public bool HasError { get; set; } = false;
+    public int Progress { get; set; } = 0;
+    public string ProgressText { get; set; } = default!;
+    public string ErrorMessage { get; set; } = default!;
+}
+
+public class IndexFullInfo
+{
+    public SearchIndex index { get; set; } = default!;
+    public List<Site> sites { get; set; } = default!;
 }

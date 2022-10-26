@@ -62,11 +62,6 @@ internal class Program
         var Issuer = builder.Configuration.GetSection("Jwt:Issuer").Value;
         var Audience = builder.Configuration.GetSection("Jwt:Audience").Value;
 
-        // Console.WriteLine("::Config::");
-        // Console.WriteLine($"SecretKey   : {SecretKey}");
-        // Console.WriteLine($"Issuer      : {Issuer}");
-        // Console.WriteLine($"Audience    : {Audience}");
-
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {

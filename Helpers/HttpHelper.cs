@@ -27,8 +27,6 @@ public class HttpHelper
         var client = _clientFactory.CreateClient("CrawlerClient");
         client.Timeout = TimeSpan.FromSeconds(timeout);
 
-        Console.WriteLine($"get request to {client.BaseAddress}{fullPath}");
-
         HttpResponseMessage response;
 
         try

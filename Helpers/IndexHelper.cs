@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.SignalR;
 using MongoDB.Driver;
 using ProductAPI.DbContracts;
@@ -8,7 +9,7 @@ namespace ProductAPI.Helpers.Database;
 
 public class IndexHelper
 {
-    private readonly string collectionName = "search-indexes";
+    private string DbCollectionName = "search-indexes";
     private IDatabaseService DbService { get; set; } = default!;
 
     public static IndexHelper WithService(IDatabaseService dbService)
@@ -21,7 +22,7 @@ public class IndexHelper
 
     public bool IndexExists(string indexText)
     {
-        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
 
         var iTlower = indexText.ToLower();
         var tokensFilter = Builders<SearchIndex>.Filter.Eq(x => x.TextToSearch, iTlower);
@@ -30,7 +31,7 @@ public class IndexHelper
 
     public bool AddIndex(SearchIndex newIndex)
     {
-        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
 
         try { searchIndexes.InsertOne(newIndex); }
         catch (Exception _) { return false; }
@@ -40,7 +41,7 @@ public class IndexHelper
 
     public List<SearchIndex> ListIndexes(string filter, int skip, int take)
     {
-        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
 
         if (string.IsNullOrEmpty(filter))
             return searchIndexes.Find(e => true).Skip(skip).Limit(take).ToList<SearchIndex>();
@@ -52,13 +53,13 @@ public class IndexHelper
 
     public List<SearchIndex> AllIndexes()
     {
-        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
         return searchIndexes.Find(e => true).ToList<SearchIndex>();
     }
 
     public long CountIndexes(string filter = "")
     {
-        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
 
         if (string.IsNullOrEmpty(filter))
             return searchIndexes.CountDocuments(e => true);
@@ -71,7 +72,7 @@ public class IndexHelper
     {
         textToSearch = textToSearch.ToLower();
 
-        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
         var tokensFilter = Builders<SearchIndex>.Filter.Eq(x => x.TextToSearch, textToSearch.ToLower());
         var result = searchIndexes.DeleteOne(tokensFilter);
 
@@ -80,10 +81,32 @@ public class IndexHelper
 
     public SearchIndex? GetIndex(string indexText)
     {
-        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(collectionName);
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
 
         var iTlower = indexText.ToLower();
         var tokensFilter = Builders<SearchIndex>.Filter.Eq(x => x.TextToSearch, iTlower);
         return searchIndexes.Find(tokensFilter).First() ?? null;
+    }
+
+    public bool UpdateIndex(SearchIndex index)
+    {
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
+
+        Expression<Func<SearchIndex, bool>> filter = m => m.TextToSearch == index.TextToSearch;
+
+        UpdateDefinition<SearchIndex> update = Builders<SearchIndex>.Update
+            .Set(m => m.AveragePrice, index.AveragePrice)
+            .Set(m => m.ImageUrl, index.ImageUrl)
+            .Set(m => m.SitesIndexed, index.SitesIndexed)
+            .Set(m => m.LastUpdate, DateTime.UtcNow);
+
+        var options = new FindOneAndUpdateOptions<SearchIndex, SearchIndex>
+        {
+            IsUpsert = false,
+            ReturnDocument = ReturnDocument.After
+        };
+
+        var updated = searchIndexes.FindOneAndUpdate(filter, update, options);
+        return updated != null;
     }
 }

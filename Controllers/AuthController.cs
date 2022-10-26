@@ -174,12 +174,11 @@ public class AuthController : ControllerBase
     {
         var cookieOptions = new CookieOptions()
         {
-            Secure = true,
+            Secure = false,
             HttpOnly = true,
             IsEssential = true,
-            SameSite = SameSiteMode.Lax,
+            SameSite = SameSiteMode.Unspecified,
             Path = "/",
-            // Domain = "localhost",
             Expires = DateTimeOffset.Now.AddDays(90),
             MaxAge = TimeSpan.FromDays(90),
         };
@@ -189,8 +188,6 @@ public class AuthController : ControllerBase
 
     private string CreateToken(User user)
     {
-        Console.WriteLine($"Creating Token {user.Email} : Role {user.Role}");
-
         List<Claim> claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),

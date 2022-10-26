@@ -7,6 +7,9 @@ public class SearchIndex
     public ObjectId Id { get; set; }
 
     [DataMember]
+    public string ImageUrl { get; set; } = default!;
+
+    [DataMember]
     public string TextToSearch { get; set; } = default!;
 
     [DataMember]
@@ -14,6 +17,9 @@ public class SearchIndex
 
     [DataMember]
     public double MaxSites { get; set; }
+
+    [DataMember]
+    public double RelativePrice { get; set; }
 
     [DataMember]
     public bool UseGoogle { get; set; }
@@ -26,6 +32,9 @@ public class SearchIndex
 
     [DataMember]
     public int SitesIndexed { get; set; }
+
+    [DataMember]
+    public float AveragePrice { get; set; }
 
     [DataMember]
     public DateTime LastUpdate { get; set; }
