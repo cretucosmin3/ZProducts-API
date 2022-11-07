@@ -90,16 +90,13 @@ public class CrawlerController : ControllerBase
         return Ok();
     }
 
-    [HttpGet("testing"), ApiKey]
-    public ActionResult<string> Testing()
+    [HttpGet("needs-general-search"), ApiKey]
+    public ActionResult<bool> NeedsGeneralSearch()
     {
-        return "Hello";
-    }
+        var processHelper = ProcessHelper.WithService(dbService);
+        var latest = processHelper.LatestFinished("General Indexing");
 
-    [HttpGet("test"), ApiKey]
-    public ActionResult<string> Test()
-    {
-        return Ok("Hello there");
+        return latest != null && DateTime.UtcNow.Day != latest.FinishedAt.Day;
     }
 }
 

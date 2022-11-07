@@ -32,6 +32,7 @@ public class IndexController : ControllerBase
     [HttpPost("add-new")]
     public ActionResult<bool> AddNew(AddIndexForm indexData)
     {
+        Console.WriteLine("Add request received");
         // Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(formData));
         var indexHeleper = IndexHelper.WithService(dbService);
 
@@ -64,6 +65,16 @@ public class IndexController : ControllerBase
 
         if (page > 0)
             return indexHeleper.ListIndexes(filter ?? "", _pageRows * (page - 1), _pageRows * page);
+
+        return indexHeleper.AllIndexes();
+    }
+
+    [HttpGet("get-index-names")]
+    public ActionResult<List<SearchIndex>> GetIndexNames()
+    {
+        var indexHeleper = IndexHelper.WithService(dbService);
+
+        indexHeleper.ListIndexes(filter ?? "", _pageRows * (page - 1), _pageRows * page);
 
         return indexHeleper.AllIndexes();
     }
@@ -131,15 +142,30 @@ public class IndexController : ControllerBase
     }
 
     [HttpGet("has-in-progress")]
-    public ActionResult<Process?> HasInProgress(string indexText)
+    public async Task<ActionResult<Process?>> HasInProgress(string indexText)
     {
         string processName = $"Indexing '{indexText}'";
         var processHelper = ProcessHelper.WithService(dbService);
 
         var process = processHelper.FindInProgress(processName);
 
+        var http = HttpHelper.WithFactory(clientFactory);
+        var parameters = new Dictionary<string, string?>()
+        {
+            {"processName", processName},
+        };
+
         if (process == null)
             return NotFound("Process not found");
+
+        var exists = await http.Get<bool>("process-exists", 10, parameters);
+
+        Console.WriteLine($"Process exists? {exists.Data.ToString()}");
+
+        if (!exists.Failed && !exists.Data)
+        {
+            processHelper.UpdateError(processName, "Unknown error.");
+        }
 
         return processHelper.FindInProgress(processName);
     }
