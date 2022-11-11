@@ -39,8 +39,8 @@ public class ProcessHelper
     public Process? LatestFinished(string processName)
     {
         var tokens = DbService.Database.GetCollection<Process>(DbCollectionName);
-        var found = tokens.Find(x => x.Name == processName && x.Finished).SortBy(e => e.FinishedAt);
-        return found.First();
+        var found = tokens.Find(x => x.Name == processName && x.Finished).SortByDescending(e => e.FinishedAt);
+        return found.Any() ? found.First() : null;
     }
 
     public Process? FindInProgress(string processName)

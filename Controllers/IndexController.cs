@@ -9,6 +9,7 @@ using ProductAPI.Helpers;
 using ProductAPI.Helpers.Database;
 using ProductAPI.Services;
 using ProductAPI.SinglarRHubs;
+using ProductAPI.Attributes;
 
 namespace ProductAPI.Controllers;
 
@@ -32,7 +33,6 @@ public class IndexController : ControllerBase
     [HttpPost("add-new")]
     public ActionResult<bool> AddNew(AddIndexForm indexData)
     {
-        Console.WriteLine("Add request received");
         // Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(formData));
         var indexHeleper = IndexHelper.WithService(dbService);
 
@@ -65,16 +65,6 @@ public class IndexController : ControllerBase
 
         if (page > 0)
             return indexHeleper.ListIndexes(filter ?? "", _pageRows * (page - 1), _pageRows * page);
-
-        return indexHeleper.AllIndexes();
-    }
-
-    [HttpGet("get-index-names")]
-    public ActionResult<List<SearchIndex>> GetIndexNames()
-    {
-        var indexHeleper = IndexHelper.WithService(dbService);
-
-        indexHeleper.ListIndexes(filter ?? "", _pageRows * (page - 1), _pageRows * page);
 
         return indexHeleper.AllIndexes();
     }
@@ -193,7 +183,7 @@ public class AddIndexForm
     public string TextToSearch { get; set; } = String.Empty;
 
     [JsonPropertyName("relativePrice")]
-    public double RelativePrice { get; set; }
+    public float RelativePrice { get; set; }
 
     [JsonPropertyName("maxSites")]
     public double MaxSites { get; set; }

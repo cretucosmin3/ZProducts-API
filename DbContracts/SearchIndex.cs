@@ -19,7 +19,7 @@ public class SearchIndex
     public double MaxSites { get; set; }
 
     [DataMember]
-    public double RelativePrice { get; set; }
+    public float RelativePrice { get; set; }
 
     [DataMember]
     public bool UseGoogle { get; set; }

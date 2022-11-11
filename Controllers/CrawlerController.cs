@@ -44,7 +44,6 @@ public class CrawlerController : ControllerBase
 
         Dictionary<string, Site> ToAddOrUpdate = new Dictionary<string, Site>();
 
-        float averagePrice = 0;
         foreach (var (url, price) in update.Sites)
         {
             Uri uriAddress = new Uri(url);
@@ -75,13 +74,22 @@ public class CrawlerController : ControllerBase
             }
 
             siteHelper.AddOrUpdate(toAddOrUpdate, relatedIndex);
-
-            averagePrice += price;
         }
 
-        averagePrice /= update.Sites.Count;
+        float averagePrice = 0;
+        float count = 0;
+        var allIndexSites = siteHelper.FindForIndex(update.Index);
+
+        foreach (var site in allIndexSites)
+        {
+            count += 1f;
+            averagePrice += site.Price;
+        }
+
+        averagePrice /= count;
+
         relatedIndex.AveragePrice = (int)averagePrice;
-        relatedIndex.SitesIndexed = update.Sites.Count;
+        relatedIndex.SitesIndexed = (int)count;
         relatedIndex.ImageUrl = update.Image ?? "";
 
         if (!indexHelper.UpdateIndex(relatedIndex))
@@ -96,7 +104,58 @@ public class CrawlerController : ControllerBase
         var processHelper = ProcessHelper.WithService(dbService);
         var latest = processHelper.LatestFinished("General Indexing");
 
-        return latest != null && DateTime.UtcNow.Day != latest.FinishedAt.Day;
+        return latest == null || DateTime.UtcNow.Day != latest.FinishedAt.Day;
+    }
+
+    [HttpGet("get-index-names"), ApiKey]
+    public ActionResult<string[]> GetIndexNames()
+    {
+        var indexHeleper = IndexHelper.WithService(dbService);
+
+        var indexes = indexHeleper.AllIndexeNames();
+
+        return indexes.Length > 0 ? indexHeleper.AllIndexeNames() : new string[0];
+    }
+
+    [HttpGet("get-index-sites"), ApiKey]
+    public ActionResult<string[]> GetIndexSites(string indexName)
+    {
+        try
+        {
+            var siteHelper = SiteHelper.WithService(dbService);
+            var sites = siteHelper.FindForIndex(indexName);
+            return sites.Any() ? sites.Select(e => e.Url).ToArray() : new string[0];
+        }
+        catch (Exception x)
+        {
+            Console.WriteLine(x.Message);
+        }
+
+        return new string[0];
+    }
+
+    [HttpGet("get-index-data"), ApiKey]
+    public ActionResult<SearchIndex> GetIndexData(string indexName)
+    {
+        var indexHeleper = IndexHelper.WithService(dbService);
+        var index = indexHeleper.GetIndex(indexName);
+
+        if (index == null) return BadRequest("Index not found");
+
+        return index;
+    }
+
+    [HttpGet("add-process"), ApiKey]
+    public ActionResult<string?> AddProcess(string processName)
+    {
+        var processHelper = ProcessHelper.WithService(dbService);
+        var processId = processHelper.AddProcess(new Process()
+        {
+            Name = processName,
+            StartedAt = DateTime.UtcNow,
+        });
+
+        return processId;
     }
 }
 

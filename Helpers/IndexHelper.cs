@@ -57,6 +57,12 @@ public class IndexHelper
         return searchIndexes.Find(e => true).ToList<SearchIndex>();
     }
 
+    public string[] AllIndexeNames()
+    {
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
+        return searchIndexes.Find(e => true).ToList<SearchIndex>().Select(e => e.TextToSearch).ToArray();
+    }
+
     public long CountIndexes(string filter = "")
     {
         var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
