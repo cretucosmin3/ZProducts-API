@@ -34,7 +34,6 @@ public class CrawlerController : ControllerBase
     {
         var siteHelper = SiteHelper.WithService(dbService);
         var indexHelper = IndexHelper.WithService(dbService);
-
         var relatedIndex = indexHelper.GetIndex(update.Index);
 
         if (relatedIndex == null)
@@ -62,8 +61,18 @@ public class CrawlerController : ControllerBase
 
             if (dbData != null && dbData.Any())
             {
-                toAddOrUpdate.PriceHistory = dbData.First().PriceHistory;
-                toAddOrUpdate.PriceHistory.TryAdd(DateTime.UtcNow.ToShortDateString(), price);
+                float lastPrice = -1;
+                var history = dbData.First().PriceHistory;
+
+                if (history != null && history.Count > 0)
+                {
+                    toAddOrUpdate.PriceHistory = history;
+                    lastPrice = dbData.First().PriceHistory.Last().Value;
+                }
+                else toAddOrUpdate.PriceHistory = new Dictionary<string, float>();
+
+                if (lastPrice != price)
+                    toAddOrUpdate.PriceHistory.TryAdd(DateTime.UtcNow.ToShortDateString(), price);
             }
             else
             {
@@ -103,15 +112,21 @@ public class CrawlerController : ControllerBase
     {
         var processHelper = ProcessHelper.WithService(dbService);
         var latest = processHelper.LatestFinished("General Indexing");
+        var hoursPassed = latest == null || DateTime.UtcNow.Day != latest.FinishedAt.Day;
+        return hoursPassed && processHelper.HasInProgress("General Indexing");
+    }
 
-        return latest == null || DateTime.UtcNow.Day != latest.FinishedAt.Day;
+    [HttpGet("get-index-names-for-crawling"), ApiKey]
+    public ActionResult<string[]> IndexNeedsCrawling()
+    {
+        var indexHeleper = IndexHelper.WithService(dbService);
+        return indexHeleper.IndexNamesForCrawling();
     }
 
     [HttpGet("get-index-names"), ApiKey]
     public ActionResult<string[]> GetIndexNames()
     {
         var indexHeleper = IndexHelper.WithService(dbService);
-
         var indexes = indexHeleper.AllIndexeNames();
 
         return indexes.Length > 0 ? indexHeleper.AllIndexeNames() : new string[0];

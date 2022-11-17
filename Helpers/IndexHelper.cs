@@ -63,6 +63,16 @@ public class IndexHelper
         return searchIndexes.Find(e => true).ToList<SearchIndex>().Select(e => e.TextToSearch).ToArray();
     }
 
+    public string[] IndexNamesForCrawling()
+    {
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
+        return searchIndexes.Find(e => true)
+            .ToList<SearchIndex>()
+            .Where(e => DateTime.UtcNow.Day != e.LastUpdate.Day)
+            .Select(e => e.TextToSearch)
+            .ToArray();
+    }
+
     public long CountIndexes(string filter = "")
     {
         var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
@@ -91,6 +101,7 @@ public class IndexHelper
 
         var iTlower = indexText.ToLower();
         var tokensFilter = Builders<SearchIndex>.Filter.Eq(x => x.TextToSearch, iTlower);
+
         return searchIndexes.Find(tokensFilter).First() ?? null;
     }
 

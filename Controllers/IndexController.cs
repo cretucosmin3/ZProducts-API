@@ -59,13 +59,9 @@ public class IndexController : ControllerBase
     }
 
     [HttpGet("list-indexes")]
-    public ActionResult<List<SearchIndex>> ListIndexes(string? filter, int page = 1)
+    public ActionResult<List<SearchIndex>> ListIndexes()
     {
         var indexHeleper = IndexHelper.WithService(dbService);
-
-        if (page > 0)
-            return indexHeleper.ListIndexes(filter ?? "", _pageRows * (page - 1), _pageRows * page);
-
         return indexHeleper.AllIndexes();
     }
 
