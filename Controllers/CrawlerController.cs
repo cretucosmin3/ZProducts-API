@@ -113,7 +113,10 @@ public class CrawlerController : ControllerBase
         var processHelper = ProcessHelper.WithService(dbService);
         var latest = processHelper.LatestFinished("General Indexing");
         var hoursPassed = latest == null || DateTime.UtcNow.Day != latest.FinishedAt.Day;
-        return hoursPassed && processHelper.HasInProgress("General Indexing");
+
+        if (processHelper.HasInProgress("General Indexing")) return false;
+
+        return hoursPassed;
     }
 
     [HttpGet("get-index-names-for-crawling"), ApiKey]
