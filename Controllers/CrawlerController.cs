@@ -132,7 +132,7 @@ public class CrawlerController : ControllerBase
         var indexHeleper = IndexHelper.WithService(dbService);
         var indexes = indexHeleper.AllIndexeNames();
 
-        return indexes.Length > 0 ? indexHeleper.AllIndexeNames() : new string[0];
+        return indexes.Length > 0 ? indexHeleper.AllIndexeNames() : Array.Empty<string>();
     }
 
     [HttpGet("get-index-sites"), ApiKey]
@@ -150,6 +150,22 @@ public class CrawlerController : ControllerBase
         }
 
         return new string[0];
+    }
+
+    [HttpGet("update-index-time"), ApiKey]
+    public ActionResult<bool> UpdateIndexTime(string indexName)
+    {
+        try
+        {
+            var indexHelper = IndexHelper.WithService(dbService);
+            return indexHelper.UpdateTime(indexName);
+        }
+        catch (Exception x)
+        {
+            Console.WriteLine(x.Message);
+        }
+
+        return false;
     }
 
     [HttpGet("get-index-data"), ApiKey]

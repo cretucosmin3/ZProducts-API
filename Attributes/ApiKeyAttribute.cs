@@ -19,7 +19,9 @@ public class ApiKeyAttribute : Attribute, IAsyncActionFilter
             return;
         }
         var appSettings = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+
         var apiKey = appSettings.GetValue<string>(APIKEYNAME);
+
         if (!apiKey.Equals(extractedApiKey))
         {
             context.Result = new ContentResult()

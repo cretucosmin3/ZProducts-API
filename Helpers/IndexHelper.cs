@@ -9,7 +9,7 @@ namespace ProductAPI.Helpers.Database;
 
 public class IndexHelper
 {
-    private string DbCollectionName = "search-indexes";
+    private readonly string DbCollectionName = "search-indexes";
     private IDatabaseService DbService { get; set; } = default!;
 
     public static IndexHelper WithService(IDatabaseService dbService)
@@ -67,7 +67,7 @@ public class IndexHelper
     {
         var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
         return searchIndexes.Find(e => true)
-            .ToList<SearchIndex>()
+            .ToList()
             .Where(e => DateTime.UtcNow.Day != e.LastUpdate.Day)
             .Select(e => e.TextToSearch)
             .ToArray();
@@ -115,6 +115,25 @@ public class IndexHelper
             .Set(m => m.AveragePrice, index.AveragePrice)
             .Set(m => m.ImageUrl, index.ImageUrl)
             .Set(m => m.SitesIndexed, index.SitesIndexed)
+            .Set(m => m.LastUpdate, DateTime.UtcNow);
+
+        var options = new FindOneAndUpdateOptions<SearchIndex, SearchIndex>
+        {
+            IsUpsert = false,
+            ReturnDocument = ReturnDocument.After
+        };
+
+        var updated = searchIndexes.FindOneAndUpdate(filter, update, options);
+        return updated != null;
+    }
+
+    public bool UpdateTime(string indexText)
+    {
+        var searchIndexes = DbService.Database.GetCollection<SearchIndex>(DbCollectionName);
+
+        Expression<Func<SearchIndex, bool>> filter = m => m.TextToSearch == indexText;
+
+        UpdateDefinition<SearchIndex> update = Builders<SearchIndex>.Update
             .Set(m => m.LastUpdate, DateTime.UtcNow);
 
         var options = new FindOneAndUpdateOptions<SearchIndex, SearchIndex>

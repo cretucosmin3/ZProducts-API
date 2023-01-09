@@ -43,20 +43,6 @@ internal class Program
                 new[] { "application/octet-stream" });
         });
 
-        // builder.Services.AddSwaggerGen();
-        // builder.Services.AddSwaggerGen(options =>
-        // {
-        //     options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
-        //     {
-        //         Description = "Standard Authorization header using the Bearer scheme (\"bearer {token}\")",
-        //         In = ParameterLocation.Header,
-        //         Name = "Authorization",
-        //         Type = SecuritySchemeType.ApiKey
-        //     });
-
-        //     options.OperationFilter<SecurityRequirementsOperationFilter>();
-        // });
-
         var Configuration = builder.Configuration;
         var SecretKey = builder.Configuration.GetSection("Jwt:SecretKey").Value;
         var Issuer = builder.Configuration.GetSection("Jwt:Issuer").Value;
